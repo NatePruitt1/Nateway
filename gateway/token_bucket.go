@@ -23,12 +23,11 @@ type TokenBucketCFG struct {
 }
 
 type TokenBucket struct {
-	client         *redis.Client
-	capacity       int
-	refillRate     float64
-	refillInterval float64 // in seconds
-	scriptSHA      string
-	scriptLoaded   bool
+	client       *redis.Client
+	capacity     int
+	refillRate   float64 // Tokens per second
+	scriptSHA    string
+	scriptLoaded bool
 }
 
 func NewTokenBucket(cfg TokenBucketCFG) *TokenBucket {
@@ -38,20 +37,16 @@ func NewTokenBucket(cfg TokenBucketCFG) *TokenBucket {
 	if cfg.RefillRate == 0 {
 		cfg.RefillRate = 1.0
 	}
-	if cfg.RefillInterval == 0 {
-		cfg.RefillInterval = time.Second
-	}
 
 	h := sha1.New()
 	h.Write([]byte(tokenScriptContents))
 	sha := fmt.Sprintf("%x", h.Sum(nil))
 
 	return &TokenBucket{
-		client:         cfg.Client,
-		capacity:       cfg.Capacity,
-		refillRate:     cfg.RefillRate,
-		refillInterval: cfg.RefillInterval.Seconds(),
-		scriptSHA:      sha,
+		client:     cfg.Client,
+		capacity:   cfg.Capacity,
+		refillRate: cfg.RefillRate,
+		scriptSHA:  sha,
 	}
 }
 
@@ -73,7 +68,6 @@ func (tb *TokenBucket) Allow(ctx context.Context, key string) (bool, float64, er
 	args := []interface{}{
 		tb.capacity,
 		tb.refillRate,
-		tb.refillInterval,
 		now,
 	}
 

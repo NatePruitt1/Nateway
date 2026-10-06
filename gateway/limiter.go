@@ -1,12 +1,12 @@
 package apigateway
 
 import (
-	"fmt"
 	"net/http"
 )
 
 type RateLimiter struct {
 	Bucket *TokenBucket
+	Router *Routes
 }
 
 func (rl *RateLimiter) CheckRequestAllowed(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +17,11 @@ func (rl *RateLimiter) CheckRequestAllowed(w http.ResponseWriter, r *http.Reques
 	} else if !allowed {
 		w.WriteHeader(503)
 	} else {
-		w.WriteHeader(200)
-		fmt.Fprint(w, "Hello!")
+		// Pass ahead to the request to the routing, so that we can initiate and pass along the request.
+		path := r.URL.Path
+		route := rl.Router.GetLongestPrefixRoute(path)
+		if route != nil {
+			// Send to a route. Maybe plan classes better so that the limiter is not the exposed resource?
+		}
 	}
 }

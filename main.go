@@ -20,10 +20,9 @@ func main() {
 	)
 
 	bucketCfg := apigateway.TokenBucketCFG{
-		Capacity:       100,
-		RefillRate:     10,
-		RefillInterval: 1 * time.Second,
-		Client:         client,
+		Capacity:   25000,
+		RefillRate: 10000,
+		Client:     client,
 	}
 
 	bucket := apigateway.NewTokenBucket(bucketCfg)
