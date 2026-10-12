@@ -1,11 +1,7 @@
 package main
 
 import (
-	apigateway "ApiGateway/gateway"
-	"fmt"
-	"net"
-	"net/http"
-	"time"
+	"ApiGateway/internal/domain"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -19,25 +15,13 @@ func main() {
 		},
 	)
 
-	bucketCfg := apigateway.TokenBucketCFG{
-		Capacity:   25000,
-		RefillRate: 10000,
-		Client:     client,
-	}
-
-	bucket := apigateway.NewTokenBucket(bucketCfg)
-	limiter := apigateway.RateLimiter{Bucket: bucket}
-
-	listener, err := net.Listen("tcp", ":8080")
+	redisRateLimitLoader, err := domain.NewRedisRateLimiterLoader("./redis_limiter_cfg.json", client)
 	if err != nil {
-		fmt.Printf("Error opening interface: %w", err)
-		return
+		panic(err)
 	}
 
-	server := http.Server{
-		Handler:           http.HandlerFunc(limiter.CheckRequestAllowed),
-		ReadHeaderTimeout: 2 * time.Second,
-	}
+	redisRateLimitLoader.Watch()
 
-	server.Serve(listener)
+	for {
+	}
 }

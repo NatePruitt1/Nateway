@@ -2,10 +2,12 @@ package domain
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"sync/atomic"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -21,16 +23,32 @@ type RedisRateLimiterCFG struct {
 	AddrExpireSeconds int     `json:"addr_expire_time"`
 }
 
+// Manages the hot loading for the redis rate limiter.
+// Is Pinnable, and covers the RateLimiter interface.
 type RedisRateLimiterLoader struct {
 	redisLimiter atomic.Pointer[RedisRateLimiter]
 	redisClient  *redis.Client
 	fileLocation string
 }
 
+func NewRedisRateLimiterLoader(fileLocation string, client *redis.Client) (*RedisRateLimiterLoader, error) {
+	limitLoader := &RedisRateLimiterLoader{
+		redisClient:  client,
+		fileLocation: fileLocation,
+	}
+
+	limitLoader.Load()
+
+	return limitLoader, nil
+}
+
 func (rll *RedisRateLimiterLoader) Pin() *RedisRateLimiter {
 	return rll.redisLimiter.Load()
 }
 
+// Loads the configuration stored in the file location in the redis rate limiter loader,
+// and then creates a new redis rate limiter with the configuration and performs
+// an atomic update to the redis rate limiter loader's pointer.
 func (rll *RedisRateLimiterLoader) Load() error {
 	content, err := os.ReadFile(rll.fileLocation)
 	if err != nil {
@@ -43,6 +61,47 @@ func (rll *RedisRateLimiterLoader) Load() error {
 
 	newRl := NewRedisRateLimiter(newCFG, rll.redisClient)
 	rll.redisLimiter.Store(newRl)
+
+	log.Printf("Redis rate limiter loaded, new cfg\n%+v", newRl)
+
+	return nil
+}
+
+// Watch for configuration changes, and when necessary, reload
+// the redis rate limiter.
+func (rll *RedisRateLimiterLoader) Watch() error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		defer watcher.Close()
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+
+				log.Println("Event:", event)
+				if event.Has(fsnotify.Write) {
+					log.Println("File changed, reloading...")
+					rll.Load()
+				}
+			case _, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+			}
+		}
+	}()
+
+	err = watcher.Add(rll.fileLocation)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return err
 }
 
 type RedisRateLimiter struct {
