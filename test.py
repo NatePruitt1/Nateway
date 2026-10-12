@@ -2,7 +2,7 @@ import time
 import requests
 
 # Define the target address
-URL = "http://localhost:8080"
+URL = "http://localhost:8000"
 
 print(f"Starting to send 10 HTTP requests to {URL}...\n")
 

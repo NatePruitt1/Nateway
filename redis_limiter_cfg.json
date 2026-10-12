@@ -1,0 +1,7 @@
+{
+    "gen_capacity": 100000000,
+    "gen_refill_rate": 100000,
+    "addr_capacity": 1000000000,
+    "addr_refill_rate": 100000,
+    "addr_expire_time": 3600
+}

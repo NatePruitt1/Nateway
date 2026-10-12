@@ -1,0 +1,9 @@
+{
+    "routes": {
+        "/": {
+            "auth_required": false,
+            "address": "localhost:8080",
+            "auth_key": "no-key"
+        }
+    }
+}
