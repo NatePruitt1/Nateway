@@ -1,4 +1,4 @@
-package apigateway
+package domain
 
 //Credit: https://github.com/redis/docs/blob/main/content/develop/use-cases/rate-limiter/go/token_bucket.go
 
@@ -16,10 +16,9 @@ import (
 var tokenScriptContents string
 
 type TokenBucketCFG struct {
-	Capacity       int
-	RefillRate     float64
-	RefillInterval time.Duration
-	Client         *redis.Client
+	Capacity   int
+	RefillRate float64
+	Client     *redis.Client
 }
 
 type TokenBucket struct {
