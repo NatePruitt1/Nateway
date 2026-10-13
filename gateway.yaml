@@ -1,0 +1,16 @@
+# Config Example, testing out :)
+limits:
+  general:
+    capacity: 1000000
+    refill: 1000000
+  ip:
+    capacity: 1000000
+    refill: 1000000
+
+
+gateway:
+  listen: 8000
+  locations:
+    - path: '/'
+      target: 'localhost:8080'
+      auth_required: false

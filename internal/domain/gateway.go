@@ -1,93 +1,81 @@
 package domain
 
 import (
-	"io"
-	"log"
-	"net"
 	"net/http"
+	"os"
+	"sync/atomic"
+
+	"github.com/redis/go-redis/v9"
+	"go.yaml.in/yaml/v4"
 )
 
 type Gateway struct {
-	Limiter *RedisRateLimiterLoader
-	Router  *LongestMatchRouterLoader
+	Config *GatewayConfig
+	Router *Routes
+	Entry  http.Handler
 }
 
-func (g *Gateway) StartGateway(listener net.Listener) {
-	server := http.Server{
-		Handler: http.HandlerFunc(g.HandleRequest),
-	}
-
-	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
-		log.Printf("Server runtime error: %v\n", err)
-	}
+type BucketCFG struct {
+	Capacity int     `yaml:"capacity"`
+	Refill   float64 `yaml:"refill"`
 }
 
-func (g *Gateway) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	// Get pinned configurations
-	limiter := g.Limiter.Pin()
-	router := g.Router.Pin()
+type EndpointCFG struct {
+	Path    string `yaml:"path"`
+	Target  string `yaml:"target"`
+	Auth    bool   `yaml:"auth_required"`
+	AuthKey string `yaml:"auth_key"`
+}
 
-	ok, err := limiter.CheckGeneralRequestAllowed(r)
-	if !ok {
-		w.WriteHeader(http.StatusBadGateway)
-		return
-	}
+type GatewayConfig struct {
+	Limits struct {
+		General     BucketCFG `yaml:"general"`
+		IpBucketCFG BucketCFG `yaml:"ip"`
+	} `yaml:"limits"`
+	Server struct {
+		ListenPort int           `yaml:"listen"`
+		Locations  []EndpointCFG `yaml:"locations"`
+	} `yaml:"gateway"`
+}
+
+func LoadGateway(filepath string, client *redis.Client) (*Gateway, error) {
+	cfg := &GatewayConfig{}
+
+	txt, err := os.ReadFile(filepath)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
-	ok, err = limiter.CheckIpRequestAllowed(r)
-	if !ok {
-		w.WriteHeader(http.StatusBadGateway)
-		return
-	}
+	err = yaml.Unmarshal(txt, cfg)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
-	endpoint, err := router.GetEndpoint(r)
-	if err == NoRouteFoundErr {
-		w.WriteHeader(404)
-	} else if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(502)
-		return
-	}
+	// genCfg := TokenBucketCFG{
+	// 	Capacity:   cfg.Limits.General.Capacity,
+	// 	RefillRate: cfg.Limits.General.Refill,
+	// 	Client:     client,
+	// }
+	// ipCfg := TokenBucketCFG{
+	// 	Capacity:   cfg.Limits.IpBucketCFG.Capacity,
+	// 	RefillRate: cfg.Limits.IpBucketCFG.Refill,
+	// 	Client:     client,
+	// }
 
-	// Send the request to the endpoint.
-	outReq := r.Clone(r.Context())
-	outReq.URL.Scheme = "http"
-	outReq.URL.Host = endpoint.Address
-	outReq.URL.Path = r.URL.Path
-	outReq.URL.RawQuery = r.URL.RawQuery
+	// genBucket := NewTokenBucket(genCfg)
+	// ipBucket := NewTokenBucket(ipCfg)
 
-	outReq.RequestURI = ""
+	router := NewRoutes(cfg)
 
-	client := &http.Client{}
-	resp, err := client.Do(outReq)
-	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(502)
-		return
-	}
-	// 5. Copy headers from the backend response to the client response
-	for key, values := range resp.Header {
-		for _, value := range values {
-			w.Header().Add(key, value)
-		}
-	}
+	entry := Chain(ProxyHandler(), LongestMatchRouterMiddleware(*router))
 
-	// 6. Copy the status code (Must happen AFTER setting headers, but BEFORE writing the body)
-	w.WriteHeader(resp.StatusCode)
+	return &Gateway{
+		Config: cfg,
+		Router: router,
+		Entry:  entry,
+	}, nil
+}
 
-	// 7. Stream the body chunks directly to the client
-	// io.Copy uses a 32KB internal buffer to read and write concurrently
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
-		// The status header has already been sent, so we can't send an http.Error anymore.
-		// Instead, log the connection failure.
-		println("Error streaming response body:", err.Error())
-	}
+func WatchGateway(filepath string, gateway *atomic.Pointer[Gateway]) {
+
 }

@@ -7,7 +7,7 @@ const ROUTES = [
 
 export const options = {
     vus: 50,
-    duration: '200s',
+    duration: '10s',
 }
 
 export default function () {

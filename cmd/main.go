@@ -4,6 +4,8 @@ import (
 	"ApiGateway/internal/domain"
 	"log"
 	"net"
+	"net/http"
+	"strconv"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -17,31 +19,23 @@ func main() {
 		},
 	)
 
-	redisRateLimitLoader, err := domain.NewRedisRateLimiterLoader("./redis_limiter_cfg.json", client)
+	log.Println("Starting ApiGateway")
+	gtwy, err := domain.LoadGateway("./gateway.yaml", client)
 	if err != nil {
 		panic(err)
 	}
 
-	redisRateLimitLoader.Watch()
-
-	longestMatchLimitLoader, err := domain.NewLongestMatchRouterLoader("./longest_match_router_cfg.json")
-	if err != nil {
-		panic(err)
-	}
-
-	longestMatchLimitLoader.Watch()
-
-	gateway := &domain.Gateway{
-		Limiter: redisRateLimitLoader,
-		Router:  longestMatchLimitLoader,
-	}
-
-	listener, err := net.Listen("tcp", "localhost:8000")
+	listener, err := net.Listen("tcp", "localhost:"+strconv.Itoa(gtwy.Config.Server.ListenPort))
 	if err != nil {
 		panic(err)
 	}
 	defer listener.Close()
 
-	log.Println("Server started on port 8000")
-	gateway.StartGateway(listener)
+	server := http.Server{
+		Handler: gtwy.Entry,
+	}
+
+	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+		log.Printf("Server runtime err %v\n", err)
+	}
 }
