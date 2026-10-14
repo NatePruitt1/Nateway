@@ -2,17 +2,12 @@ package domain
 
 import (
 	"context"
-	"errors"
 	"log"
 	"net/http"
 )
 
-var NoRouteFoundErr error = errors.New("no route found")
-
-type Endpoint struct {
-	AuthRequired bool   `json:"auth_required"`
-	AuthKey      string `json:"auth_key"`
-	Address      string `json:"address"`
+type Router interface {
+	GetEndpoint(r *http.Request) (*Endpoint, error)
 }
 
 type Routes struct {
@@ -63,7 +58,7 @@ func getMatchLength(s, t string) int {
 	return min(len(s), len(t))
 }
 
-func LongestMatchRouterMiddleware(routes Routes) Middleware {
+func RouterMiddleware(routes Router) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			endpoint, err := routes.GetEndpoint(r)

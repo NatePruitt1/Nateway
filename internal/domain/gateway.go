@@ -51,23 +51,25 @@ func LoadGateway(filepath string, client *redis.Client) (*Gateway, error) {
 		return nil, err
 	}
 
-	// genCfg := TokenBucketCFG{
-	// 	Capacity:   cfg.Limits.General.Capacity,
-	// 	RefillRate: cfg.Limits.General.Refill,
-	// 	Client:     client,
-	// }
-	// ipCfg := TokenBucketCFG{
-	// 	Capacity:   cfg.Limits.IpBucketCFG.Capacity,
-	// 	RefillRate: cfg.Limits.IpBucketCFG.Refill,
-	// 	Client:     client,
-	// }
+	genCfg := TokenBucketCFG{
+		Capacity:   cfg.Limits.General.Capacity,
+		RefillRate: cfg.Limits.General.Refill,
+		Client:     client,
+	}
+	ipCfg := TokenBucketCFG{
+		Capacity:   cfg.Limits.IpBucketCFG.Capacity,
+		RefillRate: cfg.Limits.IpBucketCFG.Refill,
+		Client:     client,
+	}
 
-	// genBucket := NewTokenBucket(genCfg)
-	// ipBucket := NewTokenBucket(ipCfg)
+	genBucket := NewTokenBucket(genCfg)
+	ipBucket := NewTokenBucket(ipCfg)
 
 	router := NewRoutes(cfg)
 
-	entry := Chain(ProxyHandler(), LongestMatchRouterMiddleware(*router))
+	middlewares := []Middleware{RedisRateLimiterMiddleware(genBucket, ipBucket, client), RouterMiddleware(router)}
+
+	entry := Chain(ProxyHandler(), middlewares...)
 
 	return &Gateway{
 		Config: cfg,
