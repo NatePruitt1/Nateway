@@ -1,5 +1,9 @@
 # Config Example, testing out :)
 limits:
+  algorithm:
+    address: 'localhost:6379'
+    password: ""
+    db: 0
   general:
     capacity: 1000000
     refill: 1000000
@@ -9,8 +13,8 @@ limits:
 
 
 gateway:
-  listen: 8000
+  listen: ':8000'
   locations:
     - path: '/'
-      target: 'localhost:8080'
+      target: 'localhost:8081'
       auth_required: false

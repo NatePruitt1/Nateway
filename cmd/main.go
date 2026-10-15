@@ -5,34 +5,37 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strconv"
-
-	"github.com/redis/go-redis/v9"
+	"sync/atomic"
 )
 
+func GatewayPinHandler(gateway *atomic.Pointer[domain.Gateway]) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pinnedGateway := gateway.Load()
+		pinnedGateway.Entry.ServeHTTP(w, r)
+	})
+}
+
 func main() {
-	client := redis.NewClient(
-		&redis.Options{
-			Addr:     "localhost:6379",
-			Password: "",
-			DB:       0,
-		},
-	)
 
 	log.Println("Starting ApiGateway")
-	gtwy, err := domain.LoadGateway("./gateway.yaml", client)
+	gtwy, err := domain.LoadGateway("./gateway.yaml")
 	if err != nil {
 		panic(err)
 	}
 
-	listener, err := net.Listen("tcp", "localhost:"+strconv.Itoa(gtwy.Config.Server.ListenPort))
+	var atGate atomic.Pointer[domain.Gateway]
+	atGate.Store(gtwy)
+
+	domain.WatchGateway("./gateway.yaml", &atGate)
+
+	listener, err := net.Listen("tcp", gtwy.Config.Server.ListenLocation)
 	if err != nil {
 		panic(err)
 	}
 	defer listener.Close()
 
 	server := http.Server{
-		Handler: gtwy.Entry,
+		Handler: GatewayPinHandler(&atGate),
 	}
 
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {

@@ -3,6 +3,7 @@ module ApiGateway
 go 1.27.1
 
 require (
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/redis/go-redis/v9 v9.23.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
 )
