@@ -7,6 +7,8 @@ import (
 	"crypto/sha1"
 	_ "embed"
 	"fmt"
+	"math"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -84,4 +86,31 @@ func (tb *TokenBucket) Allow(ctx context.Context, key string) (bool, float64, er
 	remaining := float64(result[1])
 
 	return allowed, remaining, nil
+}
+
+type LockTokenBucket struct {
+	Capacity   float64
+	RefillRate float64
+	lastRefill time.Time
+	tokens     float64
+	lock       sync.Mutex
+}
+
+func (ltb *LockTokenBucket) Allow(ctx context.Context) (bool, float64) {
+	ltb.lock.Lock()
+	defer ltb.lock.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(ltb.lastRefill)
+	ltb.lastRefill = now
+
+	ltb.tokens += math.Floor(elapsed.Seconds() * ltb.RefillRate)
+	ltb.tokens = math.Max(ltb.tokens, ltb.Capacity)
+
+	if ltb.tokens >= 1.0 {
+		ltb.tokens -= 1.0
+		return true, ltb.tokens
+	}
+
+	return false, ltb.tokens
 }

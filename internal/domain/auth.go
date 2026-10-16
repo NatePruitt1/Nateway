@@ -3,14 +3,16 @@ package domain
 import (
 	"crypto/rsa"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
 type Authenticator struct {
-	Keys map[string]*rsa.PrivateKey
+	Keys map[string]*rsa.PublicKey
 }
 
 func extractToken(header string) string {
@@ -19,14 +21,14 @@ func extractToken(header string) string {
 	} else {
 		splauth := strings.Split(header, " ")
 		if len(splauth) == 2 && splauth[0] == "Bearer" {
-			return splauth[0]
+			return splauth[1]
 		}
 	}
 
 	return ""
 }
 
-func (auth *Authenticator) verifyToken(token, keyname string) bool {
+func (auth *Authenticator) verifyToken(token, keyname string) (bool, error) {
 	var claims jwt.RegisteredClaims
 
 	// Checks the standard fields for you.
@@ -38,14 +40,14 @@ func (auth *Authenticator) verifyToken(token, keyname string) bool {
 	})
 
 	if err != nil {
-		return false
+		return false, err
 	}
 
 	if !parsedToken.Valid {
-		return false
+		return false, nil
 	}
 
-	return true
+	return true, nil
 }
 
 func AuthenticatorMiddleware(auth Authenticator) Middleware {
@@ -54,19 +56,25 @@ func AuthenticatorMiddleware(auth Authenticator) Middleware {
 			endpoint := r.Context().Value("endpoint").(*Endpoint)
 			if endpoint == nil {
 				http.Error(w, "Error retrieving endpoint routing information.", http.StatusInternalServerError)
+				log.Print("Failed to retrieve endpoint.\n")
 				return
 			} else if endpoint.AuthRequired {
 				token := extractToken(r.Header.Get("Authorization"))
 				if token != "" {
-					valid := auth.verifyToken(token, endpoint.AuthKey)
+					valid, err := auth.verifyToken(token, endpoint.AuthKey)
+					if err != nil {
+						log.Printf("Invalid token error: %v\n", err)
+					}
 					if !valid {
 						http.Error(w, "Invalid token", http.StatusUnauthorized)
+						log.Print("Invalid Token\n")
 						return
 					} else {
 						next.ServeHTTP(w, r)
 					}
 				} else {
 					http.Error(w, "Token not provided.", http.StatusUnauthorized)
+					log.Print("Token not provided.\n")
 					return
 				}
 			}
@@ -74,4 +82,15 @@ func AuthenticatorMiddleware(auth Authenticator) Middleware {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func loadPrivateKey(path string) (*rsa.PublicKey, error) {
+	pemBytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	rsaKey, err := jwt.ParseRSAPublicKeyFromPEM(pemBytes)
+
+	return rsaKey, nil
 }

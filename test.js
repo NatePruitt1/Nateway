@@ -6,7 +6,7 @@ const ROUTES = [
 ]
 
 export const options = {
-    vus: 50,
+    vus: 5,
     duration: '10s',
 }
 

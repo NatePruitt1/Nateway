@@ -16,5 +16,6 @@ gateway:
   listen: ':8000'
   locations:
     - path: '/'
-      target: 'localhost:8081'
+      target: 'localhost:8080'
       auth_required: false
+      auth_key: "key1"

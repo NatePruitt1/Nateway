@@ -29,3 +29,19 @@ func RedisRateLimiterMiddleware(gb *TokenBucket, ipb *TokenBucket, client *redis
 		})
 	}
 }
+
+func LockerLimiterMiddleware(gb *LockTokenBucket) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Check the general token bucket.
+			ok, _ := gb.Allow(r.Context())
+			if !ok {
+				log.Printf("General rate limit exceeded for %s", r.URL.Path)
+				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}

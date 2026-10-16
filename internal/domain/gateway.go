@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"crypto/rsa"
 	"log"
 	"net/http"
 	"os"
@@ -86,7 +87,18 @@ func LoadGateway(filepath string) (*Gateway, error) {
 
 	router := NewRoutes(cfg)
 
-	middlewares := []Middleware{RedisRateLimiterMiddleware(genBucket, ipBucket, client), RouterMiddleware(router)}
+	key1, err := loadPrivateKey("../../cert.pem")
+	if err != nil {
+		return nil, err
+	}
+
+	keys := map[string]*rsa.PublicKey{"key1": key1}
+
+	auth := Authenticator{
+		Keys: keys,
+	}
+
+	middlewares := []Middleware{Logger(), RedisRateLimiterMiddleware(genBucket, ipBucket, client), RouterMiddleware(router), AuthenticatorMiddleware(auth)}
 
 	entry := Chain(ProxyHandler(), middlewares...)
 
