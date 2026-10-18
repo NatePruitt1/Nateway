@@ -19,3 +19,7 @@ gateway:
       target: 'localhost:8080'
       auth_required: false
       auth_key: "key1"
+    - path: '/path'
+      target: 'localhost:8081'
+      auth_required: false
+      auth_key: "key1"

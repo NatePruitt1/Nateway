@@ -14,7 +14,7 @@ import (
 
 type Gateway struct {
 	Config *GatewayConfig
-	Router *Routes
+	Router Router
 	Entry  http.Handler
 }
 
@@ -71,23 +71,17 @@ func LoadGateway(filepath string) (*Gateway, error) {
 		},
 	)
 
-	genCfg := TokenBucketCFG{
-		Capacity:   cfg.Limits.General.Capacity,
-		RefillRate: cfg.Limits.General.Refill,
-		Client:     client,
-	}
-	ipCfg := TokenBucketCFG{
-		Capacity:   cfg.Limits.IpBucketCFG.Capacity,
-		RefillRate: cfg.Limits.IpBucketCFG.Refill,
-		Client:     client,
+	genBucket := &RedisTokenBucketGeneral{
+		*NewRedisTokenBucket(float64(cfg.Limits.General.Capacity), cfg.Limits.General.Refill, client),
 	}
 
-	genBucket := NewTokenBucket(genCfg)
-	ipBucket := NewTokenBucket(ipCfg)
+	ipBucket := &RedisTokenBucketAddressable{
+		*NewRedisTokenBucket(float64(cfg.Limits.IpBucketCFG.Capacity), cfg.Limits.IpBucketCFG.Refill, client),
+	}
 
-	router := NewRoutes(cfg)
+	router := NewPrefixTreeRouter(cfg)
 
-	key1, err := loadPrivateKey("../../cert.pem")
+	key1, err := loadPrivateKey("cert.pem")
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +92,7 @@ func LoadGateway(filepath string) (*Gateway, error) {
 		Keys: keys,
 	}
 
-	middlewares := []Middleware{Logger(), RedisRateLimiterMiddleware(genBucket, ipBucket, client), RouterMiddleware(router), AuthenticatorMiddleware(auth)}
+	middlewares := []Middleware{RateLimiterMiddleware(genBucket, ipBucket), RouterMiddleware(router), AuthenticatorMiddleware(auth)}
 
 	entry := Chain(ProxyHandler(), middlewares...)
 

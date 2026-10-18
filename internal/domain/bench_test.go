@@ -18,6 +18,8 @@ func GatewayPinHandler(gateway *atomic.Pointer[Gateway]) http.Handler {
 	})
 }
 
+// 6915	    162816 ns/op	    5606 B/op	      79 allocs/op
+// 6858	    170566 ns/op	    5651 B/op	      80 allocs/op
 func BenchmarkMiddlewareStack(b *testing.B) {
 	// 1. Read and parse your local RSA private key from disk
 	pemBytes, err := os.ReadFile("../../key.pem")
@@ -44,6 +46,7 @@ func BenchmarkMiddlewareStack(b *testing.B) {
 	if err != nil {
 		b.Fatalf("failed to sign token: %v", err)
 	}
+	tokenString = tokenString
 
 	// Setup a dummy final handler
 	gtwy, err := LoadGateway("../../gateway.yaml")
@@ -56,14 +59,15 @@ func BenchmarkMiddlewareStack(b *testing.B) {
 	handler := GatewayPinHandler(&atGate)
 
 	// Reusable request and recorder to minimize benchmark framework noise
-	req := httptest.NewRequest("GET", "/api/v1/resource", nil)
+	req := httptest.NewRequest("GET", "/", nil)
+	//req2 := httptest.NewRequest("GET", "/path", nil)
 
 	// 4. Inject the genuine token string with the Bearer prefix
-	req.Header.Set("Authorization", "Bearer "+tokenString)
 	w := httptest.NewRecorder()
 
 	b.ResetTimer() // Exclude the file-read, parsing, and signing operations from metrics
 	for i := 0; i < b.N; i++ {
 		handler.ServeHTTP(w, req)
+		//handler.ServeHTTP(w, req2)
 	}
 }

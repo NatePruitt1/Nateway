@@ -16,12 +16,12 @@ func Chain(handler http.Handler, middlewares ...Middleware) http.Handler {
 	return handler
 }
 
-func Logger() Middleware {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Printf("Request: %s", r.URL.Path)
-			next.ServeHTTP(w, r)
-		})
+func Log(w http.ResponseWriter, r *http.Request) {
+	ep, ok := r.Context().Value("endpoint").(*Endpoint)
+	if !ok {
+		log.Printf("%s\t->%s\t->404", r.RemoteAddr, r.URL)
+	} else {
+		log.Printf("%s\t->%s\t->%s", r.RemoteAddr, r.URL, ep.Address)
 	}
 }
 
@@ -63,5 +63,7 @@ func ProxyHandler() http.Handler {
 			// Instead, log the connection failure.
 			println("Error streaming response body:", err.Error())
 		}
+
+		Log(w, r)
 	})
 }
