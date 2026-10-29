@@ -22,6 +22,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	if gtwy == nil {
+		panic("Gateway load failure!")
+	}
 
 	var atGate atomic.Pointer[domain.Gateway]
 	atGate.Store(gtwy)
