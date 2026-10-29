@@ -31,12 +31,17 @@ func extractToken(header string) string {
 func (auth *Authenticator) verifyToken(token, keyname string) (bool, error) {
 	var claims jwt.RegisteredClaims
 
+	key, ok := auth.Keys[keyname]
+	if !ok {
+		return false, fmt.Errorf("Keyname not found in Keys")
+	}
+
 	// Checks the standard fields for you.
 	parsedToken, err := jwt.ParseWithClaims(token, &claims, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", t.Header["alg"])
 		}
-		return auth.Keys[keyname], nil
+		return key, nil
 	})
 
 	if err != nil {
@@ -53,8 +58,8 @@ func (auth *Authenticator) verifyToken(token, keyname string) (bool, error) {
 func AuthenticatorMiddleware(auth Authenticator) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			endpoint := r.Context().Value("endpoint").(*Endpoint)
-			if endpoint == nil {
+			endpoint, ok := r.Context().Value("endpoint").(*Endpoint)
+			if endpoint == nil || !ok {
 				http.Error(w, "Error retrieving endpoint routing information.", http.StatusInternalServerError)
 				log.Print("Failed to retrieve endpoint.\n")
 				return
@@ -77,9 +82,9 @@ func AuthenticatorMiddleware(auth Authenticator) Middleware {
 					log.Print("Token not provided.\n")
 					return
 				}
+			} else {
+				next.ServeHTTP(w, r)
 			}
-
-			next.ServeHTTP(w, r)
 		})
 	}
 }
@@ -91,6 +96,9 @@ func loadPrivateKey(path string) (*rsa.PublicKey, error) {
 	}
 
 	rsaKey, err := jwt.ParseRSAPublicKeyFromPEM(pemBytes)
+	if err != nil {
+		return nil, err
+	}
 
 	return rsaKey, nil
 }
