@@ -1,10 +1,14 @@
 package domain
 
 import (
+	"errors"
 	"log"
 	"net"
 	"net/http"
 )
+
+var BucketCapacityInvalidError = errors.New("Bucket capacity is below 1.")
+var BucketRefillInvalidError = errors.New("Bucket refill is negative.")
 
 func RateLimiterMiddleware(gb SingleTokenBucket, ipb AddressableTokenBucket) Middleware {
 	return func(next http.Handler) http.Handler {

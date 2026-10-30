@@ -2,6 +2,7 @@ package domain
 
 import (
 	"crypto/rsa"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +12,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.yaml.in/yaml/v4"
 )
+
+var NoTargetsError = errors.New("No valid targets provided.")
+var NoListeningLocationError = errors.New("No listening target provided.")
 
 type Gateway struct {
 	Config *GatewayConfig

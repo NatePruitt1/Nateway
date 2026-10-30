@@ -29,6 +29,46 @@ gateway:
       auth_key: "key1"
 `
 
+const zeroCapacityConfig = `
+limits:
+  algorithm:
+    address: 'localhost:6379'
+  general:
+    capacity: 0
+    refill: 10
+gateway:
+  listen: ':9000'
+  locations:
+    - path: '/'
+      target: 'localhost:8080'
+`
+
+const negativeRefillConfig = `
+limits:
+  algorithm:
+    address: 'localhost:6379'
+  general:
+    capacity: 1
+    refill: -1
+gateway:
+  listen: ':9000'
+  locations:
+    - path: '/'
+      target: 'localhost:8080'
+`
+
+const emptyTargetConfig = `
+gateway:
+  listen: ':9000'
+`
+
+const noListeningLocation = `
+gateway:
+  locations:
+    - path: '/'
+      target: 'localhost:8080'
+`
+
 // setupGatewayDir creates a temp dir holding gateway.yaml and the cert.pem that
 // LoadGateway reads from the working directory, and makes it the working directory.
 func setupGatewayDir(t *testing.T, config string) string {
@@ -94,6 +134,34 @@ func TestLoadGateway_Errors(t *testing.T) {
 		os.Remove("cert.pem")
 		if _, err := LoadGateway(path); err == nil {
 			t.Error("expected an error")
+		}
+	})
+
+	t.Run("0 capacity should fail", func(t *testing.T) {
+		path := setupGatewayDir(t, zeroCapacityConfig)
+		if _, err := LoadGateway(path); err != BucketCapacityInvalidError {
+			t.Errorf("expected a bucket cap error, got %v", err)
+		}
+	})
+
+	t.Run("0 capacity should fail", func(t *testing.T) {
+		path := setupGatewayDir(t, negativeRefillConfig)
+		if _, err := LoadGateway(path); err != BucketRefillInvalidError {
+			t.Errorf("expected a bucket refill error, got %v", err)
+		}
+	})
+
+	t.Run("No gateway targets should fail", func(t *testing.T) {
+		path := setupGatewayDir(t, emptyTargetConfig)
+		if _, err := LoadGateway(path); err != NoTargetsError {
+			t.Errorf("expect a no valid target error, got %v", err)
+		}
+	})
+
+	t.Run("No gateway targets should fail", func(t *testing.T) {
+		path := setupGatewayDir(t, emptyTargetConfig)
+		if _, err := LoadGateway(path); err != NoListeningLocationError {
+			t.Errorf("expect a no listening error, got %v", err)
 		}
 	})
 }
