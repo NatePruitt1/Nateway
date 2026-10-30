@@ -55,15 +55,29 @@ func (trie *Trie) Find(key []byte) *Endpoint {
 
 	curr := trie.Root
 
+	// Set the last valid datum (fallback value) to the root.
+	lastValid := trie.Root.Children['/'].Datum
+
 	for i := range len(key) {
 		next := curr.Children[key[i]]
 
 		if next == nil {
-			return nil
+			return lastValid
+		}
+
+		if next.Datum != nil {
+			// Lookahead: If the next character is either nothing or a /, then we can use the path stored here.
+			if i+1 >= len(key) || key[i+1] == '/' {
+				lastValid = next.Datum
+			}
 		}
 
 		curr = next
 	}
 
-	return curr.Datum
+	if curr.Datum == nil {
+		return lastValid
+	} else {
+		return curr.Datum
+	}
 }

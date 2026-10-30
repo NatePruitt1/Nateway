@@ -129,9 +129,11 @@ func WatchGateway(filepath string, gateway *atomic.Pointer[Gateway]) {
 					newgtwy, err := LoadGateway(filepath)
 					if err != nil {
 						log.Printf("Failed gateway reload: %v\n", err)
+					} else if newgtwy == nil {
+						log.Printf("Faild to load gateway on reload.")
+					} else {
+						gateway.Store(newgtwy)
 					}
-
-					gateway.Store(newgtwy)
 				}
 				if event.Has(fsnotify.Create) {
 					log.Println("Created file:", event.Name)
