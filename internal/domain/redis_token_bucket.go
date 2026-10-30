@@ -2,19 +2,16 @@ package domain
 
 import (
 	"context"
-	"crypto/sha1"
 	"fmt"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
 type RedisTokenBucketInternal struct {
-	client       *redis.Client
-	capacity     float64
-	refillRate   float64 // Tokens per second
-	scriptSHA    string
-	scriptLoaded bool
+	client     *redis.Client
+	capacity   float64
+	refillRate float64 // Tokens per second
+	script     *redis.Script
 }
 
 type RedisTokenBucketGeneral struct {
@@ -26,47 +23,25 @@ type RedisTokenBucketAddressable struct {
 }
 
 func NewRedisTokenBucket(capacity, refillRate float64, client *redis.Client) *RedisTokenBucketInternal {
-	h := sha1.New()
-	h.Write([]byte(tokenScriptContents))
-	sha := fmt.Sprintf("%x", h.Sum(nil))
-
-	return &RedisTokenBucketInternal{
+	rb := &RedisTokenBucketInternal{
 		client:     client,
 		capacity:   capacity,
 		refillRate: refillRate,
-		scriptSHA:  sha,
+		script:     redis.NewScript(tokenScriptContents),
 	}
-}
 
-func (tb *RedisTokenBucketInternal) ensureScriptLoaded(ctx context.Context) {
-	if !tb.scriptLoaded {
-		sha, err := tb.client.ScriptLoad(ctx, tokenScriptContents).Result()
-		if err == nil {
-			tb.scriptSHA = sha
-			tb.scriptLoaded = true
-		}
-	}
+	return rb
 }
 
 func (tb *RedisTokenBucketInternal) Allow(ctx context.Context, key string) (bool, float64, error) {
-	tb.ensureScriptLoaded(ctx)
-
-	now := float64(time.Now().UnixMicro()) / 1e6
-
 	args := []interface{}{
 		tb.capacity,
 		tb.refillRate,
-		now,
 	}
 
-	result, err := tb.client.EvalSha(ctx, tb.scriptSHA, []string{key}, args...).Int64Slice()
+	result, err := tb.script.Run(ctx, tb.client, []string{key}, args...).Int64Slice()
 	if err != nil {
-		result, err = tb.client.Eval(ctx, tokenScriptContents, []string{key}, args...).Int64Slice()
-		if err != nil {
-			return false, 0, fmt.Errorf("token bucket eval failed: %w", err)
-		}
-
-		tb.scriptLoaded = false
+		return false, 0, fmt.Errorf("Error attempting to run token bucket script: %w", err)
 	}
 
 	allowed := result[0] == 1

@@ -11,7 +11,12 @@ func RateLimiterMiddleware(gb SingleTokenBucket, ipb AddressableTokenBucket) Mid
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check the general token bucket.
 			ok, _, err := gb.Allow(r.Context())
-			if !ok || err != nil {
+
+			if err != nil {
+				log.Printf("Error encountered allowing request in general token bucket: %v", err)
+				http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+				return
+			} else if !ok {
 				log.Printf("General rate limit exceeded for %s", r.URL.Path)
 				http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 				return
@@ -26,7 +31,11 @@ func RateLimiterMiddleware(gb SingleTokenBucket, ipb AddressableTokenBucket) Mid
 			}
 
 			ok, _, err = ipb.Allow(r.Context(), host)
-			if !ok || err != nil {
+			if err != nil {
+				log.Printf("Error encountered allowing request in ip token bucket: %v", err)
+				http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+				return
+			} else if !ok {
 				log.Printf("IP specific rate limit exceeded for ip %s on path %s", r.RemoteAddr, r.URL.Path)
 				http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 				return

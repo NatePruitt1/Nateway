@@ -1,7 +1,9 @@
 local key = KEYS[1]
+
 local capacity = tonumber(ARGV[1])
 local refill_rate = tonumber(ARGV[2])
-local now = tonumber(ARGV[3])
+local t = redis.call('TIME')
+local now = tonumber(t[1]) + tonumber(t[2]) / 1000000
 
 local bucket = redis.call('HMGET', key, 'tokens', 'last_refill')
 local tokens = tonumber(bucket[1])
@@ -25,6 +27,10 @@ if tokens >= 1 then
     allowed = 1
 end
 
-redis.call('HMSET', key, 'tokens', tokens, 'last_refill', last_refill)
+redis.call('HSET', key, 'tokens', tokens, 'last_refill', last_refill)
+
+local missing = capacity - tokens
+local tofull = missing / refill_rate
+redis.call('EXPIRE', key, math.ceil(tofull) + 1)
 
 return {allowed, tokens}

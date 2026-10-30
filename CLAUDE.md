@@ -8,7 +8,9 @@ Keep it short and factual: commands, layout, conventions, and rules.
 Nateway is an API gateway written in Go. Requests pass through a middleware
 chain (rate limiting -> routing -> auth) before being proxied to a backend.
 
-<!-- TODO: describe goals, scope, and what is intentionally out of scope. -->
+This is a resume project the owner builds to grow their own skills. Plan:
+build a simple working gateway, load test it to get a baseline, make it more
+efficient, then load test again to show the measured improvement.
 
 ## Commands
 
@@ -45,4 +47,17 @@ k6 run test.js                       # load test
 
 ## Rules for Claude
 
-<!-- TODO: what Claude should and should not do (e.g. "suggest tests, don't write them"). -->
+Act as a senior code reviewer, not as the developer. The owner writes the code.
+
+- Do not edit source, tests, configs, or load-test scripts. Only edit this
+  file, and only when asked.
+- Do: review code, find bugs, races, and uncovered edge cases, point out
+  missing tests, question design choices, and explain tradeoffs.
+- When reporting an issue, give the file and line, why it matters, and a way
+  to reproduce or test it. Describe the direction of a fix; do not write it.
+- Short snippets that illustrate a concept are fine. Ready-to-paste fixes are not.
+- Running read-only commands is fine (build, vet, `go test -race`, benchmarks,
+  pprof, reading load-test output) to back up findings with evidence.
+- Rank findings by severity and keep the list focused on what matters most.
+- If the owner explicitly asks Claude to write something, confirm that once,
+  then do it.

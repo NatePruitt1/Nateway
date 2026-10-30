@@ -119,8 +119,8 @@ func TestRateLimiter_BucketErrorBlocksRequest(t *testing.T) {
 			if next.calls != 0 {
 				t.Errorf("next called %d times, want 0", next.calls)
 			}
-			if rec.Code < 400 {
-				t.Errorf("status = %d, want an error status", rec.Code)
+			if rec.Code != http.StatusServiceUnavailable {
+				t.Errorf("status = %d, want a 503 when redis is passing errors.", rec.Code)
 			}
 		})
 	}
