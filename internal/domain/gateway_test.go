@@ -144,7 +144,7 @@ func TestLoadGateway_Errors(t *testing.T) {
 		}
 	})
 
-	t.Run("0 capacity should fail", func(t *testing.T) {
+	t.Run("0 refill_rate should fail", func(t *testing.T) {
 		path := setupGatewayDir(t, negativeRefillConfig)
 		if _, err := LoadGateway(path); err != BucketRefillInvalidError {
 			t.Errorf("expected a bucket refill error, got %v", err)
@@ -158,8 +158,8 @@ func TestLoadGateway_Errors(t *testing.T) {
 		}
 	})
 
-	t.Run("No gateway targets should fail", func(t *testing.T) {
-		path := setupGatewayDir(t, emptyTargetConfig)
+	t.Run("No gateway listening location should fail", func(t *testing.T) {
+		path := setupGatewayDir(t, noListeningLocation)
 		if _, err := LoadGateway(path); err != NoListeningLocationError {
 			t.Errorf("expect a no listening error, got %v", err)
 		}

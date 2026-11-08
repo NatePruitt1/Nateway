@@ -18,7 +18,7 @@ func GatewayPinHandler(gateway *atomic.Pointer[domain.Gateway]) http.Handler {
 func main() {
 
 	log.Println("Starting ApiGateway")
-	gtwy, err := domain.LoadGateway("./gateway.yaml")
+	gtwy, err := domain.LoadGateway("./gateway.yaml", nil)
 	if err != nil {
 		panic(err)
 	}

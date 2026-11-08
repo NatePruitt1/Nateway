@@ -17,3 +17,15 @@ type SingleTokenBucket interface {
 type AddressableTokenBucket interface {
 	Allow(ctx context.Context, address string) (bool, float64, error)
 }
+
+func checkBucketConfig(cfg BucketCFG) error {
+	if cfg.Capacity <= 0 {
+		return BucketCapacityInvalidError
+	}
+
+	if cfg.Refill <= 0 {
+		return BucketRefillInvalidError
+	}
+
+	return nil
+}

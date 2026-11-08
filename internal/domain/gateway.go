@@ -17,9 +17,10 @@ var NoTargetsError = errors.New("No valid targets provided.")
 var NoListeningLocationError = errors.New("No listening target provided.")
 
 type Gateway struct {
-	Config *GatewayConfig
-	Router Router
-	Entry  http.Handler
+	Config       *GatewayConfig
+	Router       Router
+	Entry        http.Handler
+	redis_client *redis.Client
 }
 
 type BucketCFG struct {
@@ -52,13 +53,57 @@ type GatewayConfig struct {
 	} `yaml:"gateway"`
 }
 
-func LoadGateway(filepath string) (*Gateway, error) {
+func checkGatewayConfig(listenLoc string, locations []EndpointCFG) error {
+	log.Print(listenLoc)
+
+	if listenLoc == "" {
+		return NoListeningLocationError
+	}
+
+	if len(locations) <= 0 || locations == nil {
+		return NoTargetsError
+	}
+
+	return nil
+}
+
+func CompileGateway(filepath string) error {
+	cfg := &GatewayConfig{}
+
+	txt, err := os.ReadFile(filepath)
+	if err != nil {
+		return err
+	}
+	txt = []byte(os.ExpandEnv(string(txt)))
+
+	err = yaml.Unmarshal(txt, cfg)
+	if err != nil {
+		return err
+	}
+
+	if err = checkGatewayConfig(cfg.Server.ListenLocation, cfg.Server.Locations); err != nil {
+		return err
+	}
+
+	if err = checkBucketConfig(cfg.Limits.General); err != nil {
+		return err
+	}
+
+	if err = checkBucketConfig(cfg.Limits.IpBucketCFG); err != nil {
+		return err
+	}
+
+}
+
+func LoadGateway(filepath string, currClient *redis.Client) (*Gateway, error) {
 	cfg := &GatewayConfig{}
 
 	txt, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, err
 	}
+
+	// Check the signed metatdata key to ensure this is a compiled and checked config.
 
 	txt = []byte(os.ExpandEnv(string(txt)))
 
@@ -67,13 +112,28 @@ func LoadGateway(filepath string) (*Gateway, error) {
 		return nil, err
 	}
 
-	client := redis.NewClient(
-		&redis.Options{
-			Addr:     cfg.Limits.Algorithm.ClientAddress,
-			Password: cfg.Limits.Algorithm.ClientPassword,
-			DB:       cfg.Limits.Algorithm.ClientDB,
-		},
-	)
+	if err = checkGatewayConfig(cfg.Server.ListenLocation, cfg.Server.Locations); err != nil {
+		return nil, err
+	}
+
+	if err = checkBucketConfig(cfg.Limits.General); err != nil {
+		return nil, err
+	}
+
+	if err = checkBucketConfig(cfg.Limits.IpBucketCFG); err != nil {
+		return nil, err
+	}
+
+	client := currClient
+	if client == nil {
+		client = redis.NewClient(
+			&redis.Options{
+				Addr:     cfg.Limits.Algorithm.ClientAddress,
+				Password: cfg.Limits.Algorithm.ClientPassword,
+				DB:       cfg.Limits.Algorithm.ClientDB,
+			},
+		)
+	}
 
 	genBucket := &RedisTokenBucketGeneral{
 		*NewRedisTokenBucket(float64(cfg.Limits.General.Capacity), cfg.Limits.General.Refill, client),
@@ -101,9 +161,10 @@ func LoadGateway(filepath string) (*Gateway, error) {
 	entry := Chain(ProxyHandler(), middlewares...)
 
 	return &Gateway{
-		Config: cfg,
-		Router: router,
-		Entry:  entry,
+		Config:       cfg,
+		Router:       router,
+		Entry:        entry,
+		redis_client: client,
 	}, nil
 }
 
@@ -124,13 +185,16 @@ func WatchGateway(filepath string, gateway *atomic.Pointer[Gateway]) {
 				if !ok {
 					return
 				}
+
+				gtwy := gateway.Load()
+
 				// Log the raw event info
 				log.Println("Event received:", event)
 
 				// Check specific event types using .Has()
 				if event.Has(fsnotify.Write) {
 					log.Println("Modified file:", event.Name)
-					newgtwy, err := LoadGateway(filepath)
+					newgtwy, err := LoadGateway(filepath, gtwy.redis_client)
 					if err != nil {
 						log.Printf("Failed gateway reload: %v\n", err)
 					} else if newgtwy == nil {

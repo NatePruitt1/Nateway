@@ -45,6 +45,8 @@ func ProxyHandler() http.Handler {
 			w.WriteHeader(502)
 			return
 		}
+		defer resp.Body.Close()
+
 		// 5. Copy headers from the backend response to the client response
 		for key, values := range resp.Header {
 			for _, value := range values {
@@ -61,7 +63,12 @@ func ProxyHandler() http.Handler {
 		if err != nil {
 			// The status header has already been sent, so we can't send an http.Error anymore.
 			// Instead, log the connection failure.
-			println("Error streaming response body:", err.Error())
+			log.Printf("Error streaming response body: %v", err)
+		}
+
+		_, err = io.Copy(io.Discard, resp.Body)
+		if err != nil {
+			log.Printf("Body failed to discard. Body data possibly left hanging. Error: %v", err)
 		}
 
 		Log(w, r)
