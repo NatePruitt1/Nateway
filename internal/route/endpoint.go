@@ -1,10 +1,10 @@
-package domain
+package route
 
 import (
 	"errors"
 )
 
-var NoRouteFoundErr error = errors.New("no route found")
+var ErrNoRoute error = errors.New("no route found")
 
 type Endpoint struct {
 	AuthRequired bool   `json:"auth_required"`

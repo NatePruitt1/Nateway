@@ -1,24 +1,22 @@
 package main
 
 import (
-	"ApiGateway/internal/domain"
+	"ApiGateway/internal/gateway"
 	"log"
 	"net"
 	"net/http"
-	"sync/atomic"
 )
 
-func GatewayPinHandler(gateway *atomic.Pointer[domain.Gateway]) http.Handler {
+func GatewayPinHandler(gateway *gateway.Gateway) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pinnedGateway := gateway.Load()
-		pinnedGateway.Entry.ServeHTTP(w, r)
+		gateway.Entry.ServeHTTP(w, r)
 	})
 }
 
 func main() {
 
 	log.Println("Starting ApiGateway")
-	gtwy, err := domain.LoadGateway("./gateway.yaml")
+	gtwy, err := gateway.LoadGateway("./gateway.yaml")
 	if err != nil {
 		panic(err)
 	}
@@ -26,19 +24,14 @@ func main() {
 		panic("Gateway load failure!")
 	}
 
-	var atGate atomic.Pointer[domain.Gateway]
-	atGate.Store(gtwy)
-
-	domain.WatchGateway("./gateway.yaml", &atGate)
-
-	listener, err := net.Listen("tcp", gtwy.Config.Server.ListenLocation)
+	listener, err := net.Listen("tcp", gtwy.ListenLocation.String())
 	if err != nil {
 		panic(err)
 	}
 	defer listener.Close()
 
 	server := http.Server{
-		Handler: GatewayPinHandler(&atGate),
+		Handler: GatewayPinHandler(gtwy),
 	}
 
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {

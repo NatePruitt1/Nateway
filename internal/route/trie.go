@@ -1,4 +1,6 @@
-package domain
+package route
+
+import "errors"
 
 type Trie struct {
 	Root *TrieNode
@@ -22,9 +24,28 @@ func NewTrieNode() *TrieNode {
 	}
 }
 
-func (trie *Trie) Add(key []byte, val *Endpoint) {
+// Strip last /. If this is a root call, leave the special first slash.
+func formatPath(path []byte) []byte {
+	if len(path) > 1 && path[len(path)-1] == '/' {
+		return path[:len(path)-1]
+	}
+
+	if len(path) == 0 {
+		return []byte("/")
+	}
+
+	return path
+}
+
+func (trie *Trie) Add(key []byte, val *Endpoint) error {
+	pattern := getPathValidationPattern()
+
 	if len(key) == 0 {
-		return
+		return errors.New("no empty paths.")
+	}
+
+	if !pattern.Match(key) {
+		return errors.New("Paths must match regex. No empty paths, trailing slashes, or non-letter/number characters.")
 	}
 
 	if trie.Root == nil {
@@ -45,39 +66,27 @@ func (trie *Trie) Add(key []byte, val *Endpoint) {
 	}
 
 	curr.Datum = val
+	return nil
 }
 
-func (trie *Trie) Find(key []byte) *Endpoint {
+func (trie *Trie) Find(path []byte) *Endpoint {
+	key := formatPath(path)
 
 	if len(key) == 0 {
-		return nil
+		return trie.Find([]byte("/"))
 	}
 
 	curr := trie.Root
-
-	// Set the last valid datum (fallback value) to the root.
-	lastValid := trie.Root.Children['/'].Datum
 
 	for i := range len(key) {
 		next := curr.Children[key[i]]
 
 		if next == nil {
-			return lastValid
-		}
-
-		if next.Datum != nil {
-			// Lookahead: If the next character is either nothing or a /, then we can use the path stored here.
-			if i+1 >= len(key) || key[i+1] == '/' {
-				lastValid = next.Datum
-			}
+			return nil
 		}
 
 		curr = next
 	}
 
-	if curr.Datum == nil {
-		return lastValid
-	} else {
-		return curr.Datum
-	}
+	return curr.Datum
 }

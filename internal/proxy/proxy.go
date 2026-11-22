@@ -1,23 +1,14 @@
-package domain
+package proxy
 
 import (
+	"ApiGateway/internal/route"
 	"io"
 	"log"
 	"net/http"
 )
 
-type Middleware func(http.Handler) http.Handler
-
-func Chain(handler http.Handler, middlewares ...Middleware) http.Handler {
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		handler = middlewares[i](handler)
-	}
-
-	return handler
-}
-
 func Log(w http.ResponseWriter, r *http.Request) {
-	ep, ok := r.Context().Value("endpoint").(*Endpoint)
+	ep, ok := r.Context().Value("endpoint").(*route.Endpoint)
 	if !ok {
 		log.Printf("%s\t->%s\t->404", r.RemoteAddr, r.URL)
 	} else {
@@ -28,7 +19,7 @@ func Log(w http.ResponseWriter, r *http.Request) {
 func ProxyHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Send the request to the endpoint.
-		endpoint := r.Context().Value("endpoint").(*Endpoint)
+		endpoint := r.Context().Value("endpoint").(*route.Endpoint)
 
 		outReq := r.Clone(r.Context())
 		outReq.URL.Scheme = "http"

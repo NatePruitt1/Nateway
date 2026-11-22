@@ -1,6 +1,8 @@
-package domain
+package auth
 
 import (
+	"ApiGateway/internal/middleware"
+	"ApiGateway/internal/route"
 	"crypto/rsa"
 	"fmt"
 	"log"
@@ -55,10 +57,10 @@ func (auth *Authenticator) verifyToken(token, keyname string) (bool, error) {
 	return true, nil
 }
 
-func AuthenticatorMiddleware(auth Authenticator) Middleware {
+func Middleware(auth Authenticator) middleware.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			endpoint, ok := r.Context().Value("endpoint").(*Endpoint)
+			endpoint, ok := r.Context().Value("endpoint").(*route.Endpoint)
 			if endpoint == nil || !ok {
 				http.Error(w, "Error retrieving endpoint routing information.", http.StatusInternalServerError)
 				log.Print("Failed to retrieve endpoint.\n")
